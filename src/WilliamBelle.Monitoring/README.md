@@ -3,10 +3,10 @@
 [![CI](https://github.com/williambelle-co/williambelle-monitoring-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/williambelle-co/williambelle-monitoring-dotnet/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/WilliamBelle.Monitoring.svg)](https://www.nuget.org/packages/WilliamBelle.Monitoring)
 
-An in-app monitoring agent for ASP.NET Core applications. It reports, on a
-schedule, what only the inside of a running process can see: the runtime it is
-actually on, the environment it thinks it is in, and the package versions
-actually loaded.
+An in-app monitoring agent for .NET applications. It reports, on a schedule,
+what only the inside of a running process can see: the runtime it is actually
+on, the environment it thinks it is in, and the package versions actually
+deployed.
 
 That last one matters most. A repository can say a vulnerable package was
 upgraded while production still runs the old version — this is what notices.
@@ -19,11 +19,27 @@ one place.
 ## Usage
 
 ```csharp
+builder.Services.TryAddWilliamBelleMonitoring(builder.Configuration.GetSection("Monitoring"));
+```
+
+Reads `IngestUrl`, `AppId` and `SigningKey` from that section, and optionally
+`Interval`, `Timeout` and `EnvironmentName`. Keep the signing key in a secret
+store, never in source.
+
+**A section with none of those values registers nothing and returns `false`.** An
+application is usually monitored in production and not on a developer machine,
+so that is the normal case rather than an error. A section holding *some* of
+them is a half-finished deployment — it throws, rather than starting an
+application that looks monitored and reports nothing.
+
+Where the values do not come from configuration:
+
+```csharp
 builder.Services.AddWilliamBelleMonitoring(o =>
 {
-    o.IngestUrl  = builder.Configuration["Monitoring:IngestUrl"]!;
-    o.AppId      = builder.Configuration["Monitoring:AppId"]!;
-    o.SigningKey = builder.Configuration["Monitoring:SigningKey"]!;  // Key Vault, never source
+    o.IngestUrl  = ingestUrl;
+    o.AppId      = appId;
+    o.SigningKey = signingKey;
 });
 ```
 
@@ -35,20 +51,29 @@ Every 24 hours by default it collects:
 
 - the runtime servicing level (`RuntimeInformation.FrameworkDescription`)
 - the environment name — which catches `Development` running in production
-- loaded assembly names and versions
+- the third-party packages this deployment shipped with, and their versions
 
 It signs that with HMAC-SHA256 and POSTs it. That is the complete data surface.
+
+The package list is read from the dependency manifest the runtime writes beside
+the application, so it is the set that was restored — complete before the
+process has served anything, and identical on two hosts running the same build.
+Deployments that ship without such a manifest, single-file and
+ahead-of-time-compiled ones, fall back to reporting loaded assemblies.
 
 ## What it deliberately does not do
 
 - **It accepts no inbound anything.** No endpoint, no commands, no remote
   configuration, no code execution. The channel is one-way by construction.
 - **It collects no logs, no request payloads, and no user data.**
-- **It cannot break the host.** Every reporting cycle is wrapped in
-  catch-log-continue; an unreachable ingest endpoint costs the host nothing.
+- **It cannot break the host** once it is running. Every reporting cycle is
+  wrapped in catch-log-continue; an unreachable ingest endpoint costs the host
+  nothing. Configuration is the one thing that throws, and it throws at
+  registration — a misconfiguration is a bug worth failing on while it is still
+  cheap to fix, not a warning nobody reads a day later.
 - **It carries no proprietary dependencies.** It ships into other people's
   applications, so it is kept to the smallest possible supply-chain surface:
-  two Microsoft.Extensions abstractions and nothing else.
+  Microsoft.Extensions packages a host already has, and nothing else.
 
 Keeping those properties true is the point of this package.
 

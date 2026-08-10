@@ -19,7 +19,7 @@
 
     <Authors>William Belle LLC</Authors>
     <Company>William Belle LLC</Company>
-    <Description>Reports what only a running process can see — runtime version, environment name, and the package versions actually loaded — to a William Belle LLC monitoring endpoint. Read-only and one-way: it exposes no endpoint, accepts no commands, collects no logs or user data, and cannot fail the host application. Requires an application id and signing key issued by William Belle LLC.</Description>
+    <Description>Reports what only a running process can see — runtime version, environment name, and the package versions actually deployed — to a William Belle LLC monitoring endpoint. Read-only and one-way: it exposes no endpoint, accepts no commands, collects no logs or user data, and cannot fail the host application. Requires an application id and signing key issued by William Belle LLC.</Description>
     <PackageTags>monitoring;diagnostics;aspnetcore;dependencies;drift</PackageTags>
     <PackageProjectUrl>https://williambelle.co</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -50,6 +50,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.10" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.301">

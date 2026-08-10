@@ -1,5 +1,5 @@
+using System.Net;
 using System.Net.Http.Json;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Extensions.Hosting;
@@ -19,6 +19,9 @@ public sealed class MonitoringService(
     IHostEnvironment environment,
     ILogger<MonitoringService> logger) : BackgroundService
 {
+    /// <summary>The named client this agent's requests go through.</summary>
+    internal const string HttpClientName = "williambelle-monitoring";
+
     /// <summary>
     /// Reports on the configured interval until the host shuts down. Failures
     /// are logged and swallowed: monitoring must never take down the
@@ -43,16 +46,29 @@ public sealed class MonitoringService(
 
     private async Task ReportAsync(MonitoringOptions opts, CancellationToken ct)
     {
-        var snapshot = Collect(opts.AppId, environment.EnvironmentName);
+        var snapshot = Collect(opts.AppId, opts.EnvironmentName ?? environment.EnvironmentName);
         var json = JsonSerializer.Serialize(snapshot);
         var signature = PayloadSigner.Sign(json, opts.SigningKey);
 
-        var client = httpClientFactory.CreateClient("bellwether-sensor");
+        var client = httpClientFactory.CreateClient(HttpClientName);
         using var request = new HttpRequestMessage(HttpMethod.Post, opts.IngestUrl)
         {
             Content = JsonContent.Create(new { payload = json, signature }),
         };
         var response = await client.SendAsync(request, ct);
+
+        // A refused signature and an unreachable endpoint have the same symptom
+        // — snapshots stop arriving — and completely different remedies, so the
+        // one case that is actionable from the host says what to do about it.
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            logger.LogWarning(
+                "Monitoring snapshot refused: the ingest endpoint does not recognise this "
+                + "application id, or the signing key configured here is not the one it holds. "
+                + "A key rotated at the endpoint has to be updated here too.");
+            return;
+        }
+
         response.EnsureSuccessStatusCode();
         logger.LogInformation("Monitoring snapshot reported ({Count} packages).",
             snapshot.Packages.Count);
@@ -63,18 +79,6 @@ public sealed class MonitoringService(
         AppId = appId,
         RuntimeVersion = RuntimeInformation.FrameworkDescription,
         EnvironmentName = environmentName,
-        Packages = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(a => a.GetName())
-            .Where(n => n.Name is not null)
-            .Select(n => new MonitoringSnapshot.PackageInfo
-            {
-                Name = n.Name!,
-                Version = n.Version?.ToString() ?? "unknown",
-            })
-            // Ordinal, not the default culture-sensitive comparer: snapshots
-            // are compared across time and machines to spot drift, so the
-            // order must not depend on the host's locale.
-            .OrderBy(p => p.Name, StringComparer.Ordinal)
-            .ToList(),
+        Packages = PackageInventory.Read(),
     };
 }
