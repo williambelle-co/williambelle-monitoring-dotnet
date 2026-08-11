@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WilliamBelle.Monitoring;
 
 namespace WilliamBelle.Monitoring.Tests;
@@ -83,4 +84,47 @@ public class SnapshotTests
     [Fact]
     public void Collection_is_timestamped_in_utc()
         => Assert.Equal(TimeSpan.Zero, Collect().CollectedAt.Offset);
+
+    [Fact]
+    public void The_advisory_registry_is_named_the_way_that_registry_spells_it()
+    {
+        // Case matters to the lookup: "nuget" matches nothing, which would read
+        // as an application with no known vulnerabilities.
+        Assert.Equal("NuGet", Collect().Ecosystem);
+    }
+
+    /// <summary>
+    /// The wire shape, pinned.
+    ///
+    /// The Node agent already has a test asserting it serializes these fields
+    /// in this order "the way the .NET agent uses", and nothing on this side
+    /// held that true. The two payloads are read side by side, and one client
+    /// quietly gaining or reordering a field is the drift that costs an
+    /// afternoon to spot.
+    /// </summary>
+    [Fact]
+    public void The_payload_carries_these_fields_in_this_order()
+    {
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(Collect()));
+
+        Assert.Equal(
+            ["AppId", "RuntimeVersion", "EnvironmentName", "Packages", "Ecosystem", "CollectedAt"],
+            document.RootElement.EnumerateObject().Select(p => p.Name));
+    }
+
+    /// <summary>
+    /// The endpoint deserializes with default System.Text.Json options, which
+    /// are case-sensitive. camelCase binds to nulls and comes back as a 400
+    /// that looks like a malformed request.
+    /// </summary>
+    [Fact]
+    public void Package_entries_are_pascal_case_and_carry_nothing_else()
+    {
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(Collect()));
+
+        var packages = document.RootElement.GetProperty("Packages").EnumerateArray().ToList();
+        Assert.NotEmpty(packages);
+        Assert.All(packages, package => Assert.Equal(
+            ["Name", "Version"], package.EnumerateObject().Select(p => p.Name)));
+    }
 }
