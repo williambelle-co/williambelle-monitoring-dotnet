@@ -43,6 +43,7 @@ public class MonitoringSnapshot
     /// </summary>
     public static class Ecosystems
     {
+        /// <summary>What this agent reports, and the only value it ever sends.</summary>
         public const string NuGet = "NuGet";
     }
 
