@@ -17,8 +17,34 @@ public class MonitoringSnapshot
     /// <summary>The third-party packages this deployment shipped with — what is
     /// actually deployed, as opposed to what the repository manifest says.</summary>
     public required List<PackageInfo> Packages { get; set; }
+
+    /// <summary>
+    /// Which advisory registry <see cref="Packages"/> belong to, spelled the way
+    /// that registry spells it. Constant per agent.
+    ///
+    /// Sent rather than left to be inferred. The endpoint can read it out of
+    /// <see cref="RuntimeVersion"/> instead, and does for agents older than
+    /// this one, but that only holds for as long as both agents keep describing
+    /// themselves the same way — and the wrong registry either misses a real
+    /// advisory or matches an unrelated package that shares a name.
+    ///
+    /// Declared before <see cref="CollectedAt"/> on purpose: property order is
+    /// the wire order, and the two agents' payloads are read side by side.
+    /// </summary>
+    public string Ecosystem { get; set; } = Ecosystems.NuGet;
+
     /// <summary>When the snapshot was taken, in UTC.</summary>
     public DateTimeOffset CollectedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// How an advisory database spells the registries these agents report from.
+    /// Case matters to the lookup: "nuget" finds nothing, which would read as
+    /// an application with nothing wrong.
+    /// </summary>
+    public static class Ecosystems
+    {
+        public const string NuGet = "NuGet";
+    }
 
     /// <summary>One package and the version deployed.</summary>
     public class PackageInfo
