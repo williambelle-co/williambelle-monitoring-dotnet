@@ -18,6 +18,7 @@ public static class PayloadSigner
     public static string Sign(string payload, string key)
     {
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(key));
-        return Convert.ToHexStringLower(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
+        // Convert.ToHexStringLower is .NET 9+; this form is identical output on every target.
+        return Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
     }
 }

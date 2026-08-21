@@ -8,6 +8,8 @@ what only the inside of a running process can see: the runtime it is actually
 on, the environment it thinks it is in, and the package versions actually
 deployed.
 
+Supports .NET 8, 9 and 10 — every runtime Microsoft currently supports.
+
 That last one matters most. A repository can say a vulnerable package was
 upgraded while production still runs the old version — this is what notices.
 

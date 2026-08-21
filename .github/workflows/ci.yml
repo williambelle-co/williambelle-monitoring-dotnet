@@ -20,7 +20,12 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.x'
+          # SDK 10 builds every target framework; runtimes 8 and 9 are needed
+          # only so the tests actually execute on those frameworks.
+          dotnet-version: |
+            8.x
+            9.x
+            10.x
 
       - run: dotnet build -c Release
 
